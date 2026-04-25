@@ -15,6 +15,15 @@ const T = {
   orange: '#fb923c',
 };
 
+const PRICES = {
+  sedan_out:  13,
+  suv_out:    15,
+  '4x4_out':  18,
+  sedan_full: 17,
+  suv_full:   20,
+  '4x4_full': 23,
+};
+
 const NAV = [
   { id: 'today',  icon: '📊', label: 'Today'  },
   { id: 'log',    icon: '📋', label: 'Log'    },
@@ -29,6 +38,20 @@ const TAB_LABEL = {
   today: 'Today', log: 'Car Log', staff: 'Staff Tracker',
   weekly: 'Weekly Report', roi: 'ROI Tracker', stock: 'Stock Tracker', ai: 'AI Advisor',
 };
+
+function getTodayStats() {
+  try {
+    const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
+    const today = new Date().toDateString();
+    const recs = all.filter(r => new Date(r.date).toDateString() === today);
+    return {
+      carsWashed: recs.length,
+      totalRevenue: recs.reduce((sum, r) => sum + (PRICES[r.service] || 0), 0),
+    };
+  } catch {
+    return { carsWashed: 0, totalRevenue: 0 };
+  }
+}
 
 function Placeholder({ label }) {
   return (
@@ -89,6 +112,7 @@ function BottomNav({ active, onChange }) {
 
 export default function App() {
   const [tab, setTab] = useState('today');
+  const { carsWashed, totalRevenue } = getTodayStats();
 
   return (
     <div style={{
@@ -128,8 +152,8 @@ export default function App() {
           <div style={{ padding: '0 16px' }}>
             <h1 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 900 }}>Today's Sales</h1>
             <div style={{ display: 'flex', gap: 10 }}>
-              <KpiCard label="Cars Washed" value="0" />
-              <KpiCard label="Total Revenue" value="RM 0" />
+              <KpiCard label="Cars Washed" value={String(carsWashed)} />
+              <KpiCard label="Total Revenue" value={`RM ${totalRevenue}`} />
               <KpiCard label="Net Profit" value="RM 0" />
             </div>
           </div>
