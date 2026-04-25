@@ -112,7 +112,7 @@ export default function App() {
 
       {/* Tab content */}
       <div style={{ paddingTop: 16 }}>
-        {tab === 'today'  && <Placeholder label="Today Dashboard" />}
+        {tab === 'today'  && <h1>Today's Sales</h1>}
         {tab === 'log'    && <Placeholder label="Car Log" />}
         {tab === 'staff'  && <Placeholder label="Staff Tracker" />}
         {tab === 'weekly' && <Placeholder label="Weekly Report" />}
