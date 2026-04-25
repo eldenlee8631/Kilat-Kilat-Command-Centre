@@ -38,6 +38,18 @@ function Placeholder({ label }) {
   );
 }
 
+function KpiCard({ label, value }) {
+  return (
+    <div style={{
+      background: T.card, border: `1px solid ${T.border}`, borderRadius: 12,
+      padding: '16px 20px', flex: 1,
+    }}>
+      <div style={{ color: T.muted, fontSize: 11, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      <div style={{ color: T.text, fontSize: 22, fontWeight: 900 }}>{value}</div>
+    </div>
+  );
+}
+
 function BottomNav({ active, onChange }) {
   return (
     <div style={{
@@ -112,7 +124,16 @@ export default function App() {
 
       {/* Tab content */}
       <div style={{ paddingTop: 16 }}>
-        {tab === 'today'  && <h1>Today's Sales</h1>}
+        {tab === 'today' && (
+          <div style={{ padding: '0 16px' }}>
+            <h1 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 900 }}>Today's Sales</h1>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <KpiCard label="Cars Washed" value="0" />
+              <KpiCard label="Total Revenue" value="RM 0" />
+              <KpiCard label="Net Profit" value="RM 0" />
+            </div>
+          </div>
+        )}
         {tab === 'log'    && <Placeholder label="Car Log" />}
         {tab === 'staff'  && <Placeholder label="Staff Tracker" />}
         {tab === 'weekly' && <Placeholder label="Weekly Report" />}
