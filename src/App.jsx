@@ -39,11 +39,16 @@ const TAB_LABEL = {
   weekly: 'Weekly Report', roi: 'ROI Tracker', stock: 'Stock Tracker', ai: 'AI Advisor',
 };
 
+function localDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getTodayStats() {
   try {
     const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
-    const today = new Date().toDateString();
-    const recs = all.filter(r => new Date(r.date).toDateString() === today);
+    const today = localDateStr();
+    const recs = all.filter(r => r.date === today);
     return {
       carsWashed: recs.length,
       totalRevenue: recs.reduce((sum, r) => sum + (PRICES[r.service] || 0), 0),
@@ -69,6 +74,70 @@ function KpiCard({ label, value }) {
     }}>
       <div style={{ color: T.muted, fontSize: 11, fontWeight: 700, marginBottom: 6 }}>{label}</div>
       <div style={{ color: T.text, fontSize: 22, fontWeight: 900 }}>{value}</div>
+    </div>
+  );
+}
+
+function AddCarModal({ onClose, onSave }) {
+  const [serviceType, setServiceType] = useState('out');
+  const [vehicleType, setVehicleType] = useState('sedan');
+
+  const selectStyle = {
+    width: '100%', background: T.card2, border: `1px solid ${T.border}`,
+    borderRadius: 8, color: T.text, padding: '10px 12px',
+    fontSize: 14, fontFamily: "'Nunito', sans-serif", fontWeight: 700,
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: T.card, borderRadius: '16px 16px 0 0',
+          border: `1px solid ${T.border}`, borderBottom: 'none',
+          padding: '24px 20px 40px', width: '100%', maxWidth: 430,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ fontWeight: 900, fontSize: 17, marginBottom: 20 }}>Add Car</div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ color: T.muted, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+            SERVICE TYPE
+          </label>
+          <select value={serviceType} onChange={e => setServiceType(e.target.value)} style={selectStyle}>
+            <option value="out">Outside Only</option>
+            <option value="full">In &amp; Out</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ color: T.muted, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+            VEHICLE TYPE
+          </label>
+          <select value={vehicleType} onChange={e => setVehicleType(e.target.value)} style={selectStyle}>
+            <option value="sedan">Sedan</option>
+            <option value="suv">SUV</option>
+            <option value="4x4">4x4 &amp; MPV</option>
+          </select>
+        </div>
+
+        <button
+          onClick={() => onSave(`${vehicleType}_${serviceType}`)}
+          style={{
+            width: '100%', background: T.blue, border: 'none', borderRadius: 10,
+            color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 900,
+            fontSize: 15, padding: '13px', cursor: 'pointer',
+          }}
+        >
+          Save
+        </button>
+      </div>
     </div>
   );
 }
@@ -112,7 +181,18 @@ function BottomNav({ active, onChange }) {
 
 export default function App() {
   const [tab, setTab] = useState('today');
-  const { carsWashed, totalRevenue } = getTodayStats();
+  const [showModal, setShowModal] = useState(false);
+  const [stats, setStats] = useState(getTodayStats);
+
+  function handleSave(service) {
+    try {
+      const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
+      all.push({ date: localDateStr(), service });
+      localStorage.setItem('kk_rec', JSON.stringify(all));
+    } catch {}
+    setStats(getTodayStats());
+    setShowModal(false);
+  }
 
   return (
     <div style={{
@@ -150,10 +230,22 @@ export default function App() {
       <div style={{ paddingTop: 16 }}>
         {tab === 'today' && (
           <div style={{ padding: '0 16px' }}>
-            <h1 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 900 }}>Today's Sales</h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>Today's Sales</h1>
+              <button
+                onClick={() => setShowModal(true)}
+                style={{
+                  background: T.blue, border: 'none', borderRadius: 8,
+                  color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 800,
+                  fontSize: 13, padding: '7px 14px', cursor: 'pointer',
+                }}
+              >
+                + Add Car
+              </button>
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <KpiCard label="Cars Washed" value={String(carsWashed)} />
-              <KpiCard label="Total Revenue" value={`RM ${totalRevenue}`} />
+              <KpiCard label="Cars Washed" value={String(stats.carsWashed)} />
+              <KpiCard label="Total Revenue" value={`RM ${stats.totalRevenue}`} />
               <KpiCard label="Net Profit" value="RM 0" />
             </div>
           </div>
@@ -167,6 +259,8 @@ export default function App() {
       </div>
 
       <BottomNav active={tab} onChange={setTab} />
+
+      {showModal && <AddCarModal onClose={() => setShowModal(false)} onSave={handleSave} />}
     </div>
   );
 }
