@@ -24,6 +24,15 @@ const PRICES = {
   '4x4_full': 23,
 };
 
+const SERVICE_NAMES = {
+  sedan_out:  'Sedan Outside Only',
+  sedan_full: 'Sedan In & Out',
+  suv_out:    'SUV Outside Only',
+  suv_full:   'SUV In & Out',
+  '4x4_out':  '4x4 Outside Only',
+  '4x4_full': '4x4 In & Out',
+};
+
 const NAV = [
   { id: 'today',  icon: '📊', label: 'Today'  },
   { id: 'log',    icon: '📋', label: 'Log'    },
@@ -44,6 +53,12 @@ function localDateStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function fmtTime(ts) {
+  if (!ts) return '–';
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function getTodayStats() {
   try {
     const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
@@ -62,6 +77,82 @@ function Placeholder({ label }) {
   return (
     <div style={{ padding: 32, textAlign: 'center', color: T.muted, fontSize: 16, fontWeight: 700 }}>
       {label} — coming soon
+    </div>
+  );
+}
+
+function LogTab() {
+  const today = localDateStr();
+
+  function getRecords() {
+    try {
+      const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
+      return all
+        .map((r, i) => ({ ...r, _idx: i }))
+        .filter(r => r.date === today)
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    } catch {
+      return [];
+    }
+  }
+
+  const [records, setRecords] = useState(getRecords);
+
+  function handleDelete(rec) {
+    try {
+      const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
+      all.splice(rec._idx, 1);
+      localStorage.setItem('kk_rec', JSON.stringify(all));
+    } catch {}
+    setRecords(getRecords());
+  }
+
+  if (records.length === 0) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: 200, padding: 32, textAlign: 'center',
+        color: T.muted, fontSize: 14, fontWeight: 700,
+      }}>
+        No cars washed yet today
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '0 16px' }}>
+      <h1 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 900 }}>Car Log</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {records.map(rec => (
+          <div
+            key={rec._idx}
+            style={{
+              background: T.card, border: `1px solid ${T.border}`, borderRadius: 10,
+              padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+            }}
+          >
+            <span style={{ color: T.muted, fontSize: 13, fontWeight: 700, minWidth: 38 }}>
+              {fmtTime(rec.ts)}
+            </span>
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: T.text }}>
+              {SERVICE_NAMES[rec.service] || rec.service}
+            </span>
+            <span style={{ color: T.green, fontSize: 14, fontWeight: 800, minWidth: 50, textAlign: 'right' }}>
+              RM {PRICES[rec.service] ?? '?'}
+            </span>
+            <button
+              onClick={() => handleDelete(rec)}
+              style={{
+                background: T.red, border: 'none', borderRadius: 6,
+                color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 900,
+                fontSize: 12, padding: '4px 9px', cursor: 'pointer', lineHeight: 1.4,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -187,7 +278,7 @@ export default function App() {
   function handleSave(service) {
     try {
       const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
-      all.push({ date: localDateStr(), service });
+      all.push({ date: localDateStr(), service, ts: Date.now() });
       localStorage.setItem('kk_rec', JSON.stringify(all));
     } catch {}
     setStats(getTodayStats());
@@ -250,7 +341,7 @@ export default function App() {
             </div>
           </div>
         )}
-        {tab === 'log'    && <Placeholder label="Car Log" />}
+        {tab === 'log'    && <LogTab />}
         {tab === 'staff'  && <Placeholder label="Staff Tracker" />}
         {tab === 'weekly' && <Placeholder label="Weekly Report" />}
         {tab === 'roi'    && <Placeholder label="ROI Tracker" />}
