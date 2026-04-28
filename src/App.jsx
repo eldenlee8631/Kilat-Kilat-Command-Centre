@@ -33,6 +33,15 @@ const SERVICE_NAMES = {
   '4x4_full': '4x4 In & Out',
 };
 
+const EXP_CATEGORIES = [
+  { value: 'soap',      label: 'Soap / Chemicals' },
+  { value: 'water',     label: 'Water Bill'        },
+  { value: 'salary',    label: 'Staff Salary'      },
+  { value: 'equipment', label: 'Equipment'         },
+  { value: 'others',    label: 'Others'            },
+];
+const EXP_CAT_LABEL = Object.fromEntries(EXP_CATEGORIES.map(c => [c.value, c.label]));
+
 const NAV = [
   { id: 'today',  icon: '📊', label: 'Today'  },
   { id: 'log',    icon: '📋', label: 'Log'    },
@@ -61,15 +70,27 @@ function fmtTime(ts) {
 
 function getTodayStats() {
   try {
-    const all = JSON.parse(localStorage.getItem('kk_rec') || '[]');
     const today = localDateStr();
-    const recs = all.filter(r => r.date === today);
-    return {
-      carsWashed: recs.length,
-      totalRevenue: recs.reduce((sum, r) => sum + (PRICES[r.service] || 0), 0),
-    };
+    const recs = JSON.parse(localStorage.getItem('kk_rec') || '[]').filter(r => r.date === today);
+    const exps = JSON.parse(localStorage.getItem('kk_exp') || '[]').filter(e => e.date === today);
+    const totalRevenue  = recs.reduce((sum, r) => sum + (PRICES[r.service] || 0), 0);
+    const totalExpenses = exps.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const netProfit = Math.round((totalRevenue - totalExpenses) * 100) / 100;
+    return { carsWashed: recs.length, totalRevenue, totalExpenses, netProfit };
   } catch {
-    return { carsWashed: 0, totalRevenue: 0 };
+    return { carsWashed: 0, totalRevenue: 0, totalExpenses: 0, netProfit: 0 };
+  }
+}
+
+function getTodayExpenses() {
+  try {
+    const today = localDateStr();
+    return JSON.parse(localStorage.getItem('kk_exp') || '[]')
+      .map((e, i) => ({ ...e, _idx: i }))
+      .filter(e => e.date === today)
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  } catch {
+    return [];
   }
 }
 
@@ -364,14 +385,14 @@ function StaffTab() {
   );
 }
 
-function KpiCard({ label, value }) {
+function KpiCard({ label, value, valueColor }) {
   return (
     <div style={{
       background: T.card, border: `1px solid ${T.border}`, borderRadius: 12,
       padding: '16px 20px', flex: 1,
     }}>
       <div style={{ color: T.muted, fontSize: 11, fontWeight: 700, marginBottom: 6 }}>{label}</div>
-      <div style={{ color: T.text, fontSize: 22, fontWeight: 900 }}>{value}</div>
+      <div style={{ color: valueColor || T.text, fontSize: 22, fontWeight: 900 }}>{value}</div>
     </div>
   );
 }
@@ -440,6 +461,85 @@ function AddCarModal({ onClose, onSave }) {
   );
 }
 
+function AddExpenseModal({ onClose, onSave }) {
+  const [category, setCategory] = useState('soap');
+  const [amount,   setAmount]   = useState('');
+
+  const fieldStyle = {
+    width: '100%', background: T.card2, border: `1px solid ${T.border}`,
+    borderRadius: 8, color: T.text, padding: '10px 12px', fontSize: 14,
+    fontFamily: "'Nunito', sans-serif", fontWeight: 700, boxSizing: 'border-box',
+    outline: 'none',
+  };
+
+  function handleSave() {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) return;
+    onSave(category, amt);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: T.card, borderRadius: '16px 16px 0 0',
+          border: `1px solid ${T.border}`, borderBottom: 'none',
+          padding: '24px 20px 40px', width: '100%', maxWidth: 430,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ fontWeight: 900, fontSize: 17, marginBottom: 20 }}>Add Expense</div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ color: T.muted, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+            CATEGORY
+          </label>
+          <select value={category} onChange={e => setCategory(e.target.value)} style={fieldStyle}>
+            {EXP_CATEGORIES.map(c => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ color: T.muted, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+            AMOUNT (RM)
+          </label>
+          <input
+            autoFocus
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+            placeholder="0"
+            style={fieldStyle}
+          />
+        </div>
+
+        <button
+          onClick={handleSave}
+          style={{
+            width: '100%', background: T.blue, border: 'none', borderRadius: 10,
+            color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 900,
+            fontSize: 15, padding: '13px', cursor: 'pointer',
+          }}
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function BottomNav({ active, onChange }) {
   return (
     <div style={{
@@ -478,9 +578,16 @@ function BottomNav({ active, onChange }) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState('today');
-  const [showModal, setShowModal] = useState(false);
-  const [stats, setStats] = useState(getTodayStats);
+  const [tab,          setTab]          = useState('today');
+  const [showModal,    setShowModal]    = useState(false);
+  const [showExpModal, setShowExpModal] = useState(false);
+  const [stats,        setStats]        = useState(getTodayStats);
+  const [expenses,     setExpenses]     = useState(getTodayExpenses);
+
+  function refreshToday() {
+    setStats(getTodayStats());
+    setExpenses(getTodayExpenses());
+  }
 
   function handleSave(service) {
     try {
@@ -488,8 +595,27 @@ export default function App() {
       all.push({ date: localDateStr(), service, ts: Date.now() });
       localStorage.setItem('kk_rec', JSON.stringify(all));
     } catch {}
-    setStats(getTodayStats());
+    refreshToday();
     setShowModal(false);
+  }
+
+  function handleSaveExpense(category, amount) {
+    try {
+      const all = JSON.parse(localStorage.getItem('kk_exp') || '[]');
+      all.push({ date: localDateStr(), category, amount, ts: Date.now() });
+      localStorage.setItem('kk_exp', JSON.stringify(all));
+    } catch {}
+    refreshToday();
+    setShowExpModal(false);
+  }
+
+  function handleDeleteExpense(exp) {
+    try {
+      const all = JSON.parse(localStorage.getItem('kk_exp') || '[]');
+      all.splice(exp._idx, 1);
+      localStorage.setItem('kk_exp', JSON.stringify(all));
+    } catch {}
+    refreshToday();
   }
 
   return (
@@ -544,7 +670,61 @@ export default function App() {
             <div style={{ display: 'flex', gap: 10 }}>
               <KpiCard label="Cars Washed" value={String(stats.carsWashed)} />
               <KpiCard label="Total Revenue" value={`RM ${stats.totalRevenue}`} />
-              <KpiCard label="Net Profit" value="RM 0" />
+              <KpiCard
+                label="Net Profit"
+                value={`${stats.netProfit < 0 ? '−' : ''}RM ${Math.abs(stats.netProfit)}`}
+                valueColor={stats.netProfit < 0 ? T.red : T.text}
+              />
+            </div>
+
+            {/* Expenses */}
+            <div style={{ marginTop: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Today's Expenses</h2>
+                <button
+                  onClick={() => setShowExpModal(true)}
+                  style={{
+                    background: T.blue, border: 'none', borderRadius: 8,
+                    color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 800,
+                    fontSize: 13, padding: '7px 14px', cursor: 'pointer',
+                  }}
+                >
+                  + Add Expense
+                </button>
+              </div>
+
+              {expenses.length === 0 ? (
+                <div style={{ textAlign: 'center', color: T.muted, fontSize: 14, fontWeight: 700, padding: '24px 0' }}>
+                  No expenses today
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {expenses.map(exp => (
+                    <div
+                      key={exp._idx}
+                      style={{
+                        background: T.card, border: `1px solid ${T.border}`, borderRadius: 10,
+                        padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+                      }}
+                    >
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: T.text }}>
+                        {EXP_CAT_LABEL[exp.category] || exp.category}
+                      </span>
+                      <span style={{ color: T.red, fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                        RM {exp.amount}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteExpense(exp)}
+                        style={{
+                          background: T.red, border: 'none', borderRadius: 6,
+                          color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 900,
+                          fontSize: 12, padding: '4px 9px', cursor: 'pointer', lineHeight: 1.4,
+                        }}
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -558,7 +738,8 @@ export default function App() {
 
       <BottomNav active={tab} onChange={setTab} />
 
-      {showModal && <AddCarModal onClose={() => setShowModal(false)} onSave={handleSave} />}
+      {showModal    && <AddCarModal     onClose={() => setShowModal(false)}    onSave={handleSave}        />}
+      {showExpModal && <AddExpenseModal onClose={() => setShowExpModal(false)} onSave={handleSaveExpense} />}
     </div>
   );
 }
