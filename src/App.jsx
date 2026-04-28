@@ -157,6 +157,213 @@ function LogTab() {
   );
 }
 
+function StaffTab() {
+  const [staff, setStaff] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kk_staff') || '[]'); } catch { return []; }
+  });
+  const [shifts, setShifts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kk_shifts') || '[]'); } catch { return []; }
+  });
+  const [editingId, setEditingId]   = useState(null);
+  const [editName,  setEditName]    = useState('');
+  const [showAdd,   setShowAdd]     = useState(false);
+  const [newName,   setNewName]     = useState('');
+
+  function saveStaff(arr)  { localStorage.setItem('kk_staff',  JSON.stringify(arr)); setStaff(arr);  }
+  function saveShifts(arr) { localStorage.setItem('kk_shifts', JSON.stringify(arr)); setShifts(arr); }
+
+  function handleAdd() {
+    const name = newName.trim();
+    if (!name) return;
+    saveStaff([...staff, { id: String(Date.now()), name }]);
+    setNewName(''); setShowAdd(false);
+  }
+
+  function handleDelete(id) {
+    saveStaff(staff.filter(s => s.id !== id));
+    if (editingId === id) setEditingId(null);
+  }
+
+  function handleEditSave(id) {
+    const name = editName.trim();
+    if (name) saveStaff(staff.map(s => s.id === id ? { ...s, name } : s));
+    setEditingId(null);
+  }
+
+  function handleClockToggle(id) {
+    const updated = [...shifts];
+    const activeIdx = updated.findIndex(s => s.staffId === id && s.clockOut == null);
+    if (activeIdx >= 0) {
+      updated[activeIdx] = { ...updated[activeIdx], clockOut: Date.now() };
+    } else {
+      updated.push({ staffId: id, clockIn: Date.now(), clockOut: null });
+    }
+    saveShifts(updated);
+  }
+
+  function calcHoursToday(id) {
+    const now = Date.now();
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    const dayStart = d.getTime();
+    let ms = 0;
+    for (const s of shifts) {
+      if (s.staffId !== id || s.clockIn < dayStart) continue;
+      ms += (s.clockOut || now) - s.clockIn;
+    }
+    if (ms < 60000) return null;
+    const h = ms / 3600000;
+    return `${Math.round(h * 10) / 10} hrs today`;
+  }
+
+  const inputStyle = {
+    background: T.card2, border: `1px solid ${T.border}`, borderRadius: 8,
+    color: T.text, padding: '7px 10px', fontSize: 14,
+    fontFamily: "'Nunito', sans-serif", fontWeight: 700, outline: 'none', flex: 1,
+  };
+
+  return (
+    <div style={{ padding: '0 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>Staff Tracker</h1>
+        <button
+          onClick={() => { setShowAdd(true); setNewName(''); }}
+          style={{
+            background: T.blue, border: 'none', borderRadius: 8,
+            color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: 800,
+            fontSize: 13, padding: '7px 14px', cursor: 'pointer',
+          }}
+        >
+          + Add Staff
+        </button>
+      </div>
+
+      {showAdd && (
+        <div style={{
+          background: T.card, border: `1px solid ${T.border}`, borderRadius: 10,
+          padding: '12px 14px', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center',
+        }}>
+          <input
+            autoFocus
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setShowAdd(false); }}
+            placeholder="Staff name..."
+            style={inputStyle}
+          />
+          <button onClick={handleAdd} style={{
+            background: T.blue, border: 'none', borderRadius: 6, color: '#fff',
+            fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 13,
+            padding: '7px 14px', cursor: 'pointer',
+          }}>Save</button>
+          <button onClick={() => setShowAdd(false)} style={{
+            background: 'none', border: `1px solid ${T.border}`, borderRadius: 6,
+            color: T.muted, fontFamily: "'Nunito', sans-serif", fontWeight: 700,
+            fontSize: 13, padding: '7px 10px', cursor: 'pointer',
+          }}>✕</button>
+        </div>
+      )}
+
+      {staff.length === 0 && !showAdd && (
+        <div style={{ textAlign: 'center', color: T.muted, fontSize: 14, fontWeight: 700, padding: '48px 0' }}>
+          No staff added yet
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {staff.map(s => {
+          const active   = shifts.find(sh => sh.staffId === s.id && sh.clockOut == null);
+          const hours    = calcHoursToday(s.id);
+          const isEditing = editingId === s.id;
+
+          return (
+            <div
+              key={s.id}
+              style={{
+                background: T.card,
+                border: `1px solid ${active ? T.blue : T.border}`,
+                borderRadius: 12, padding: '14px 14px 12px',
+              }}
+            >
+              {/* Name row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                {isEditing ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleEditSave(s.id);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      style={inputStyle}
+                    />
+                    <button onClick={() => handleEditSave(s.id)} style={{
+                      background: T.blue, border: 'none', borderRadius: 6, color: '#fff',
+                      fontFamily: "'Nunito', sans-serif", fontWeight: 800,
+                      fontSize: 12, padding: '5px 12px', cursor: 'pointer',
+                    }}>Save</button>
+                    <button onClick={() => setEditingId(null)} style={{
+                      background: 'none', border: 'none', color: T.muted,
+                      fontSize: 16, cursor: 'pointer', padding: '4px 4px', lineHeight: 1,
+                    }}>✕</button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ flex: 1, fontSize: 15, fontWeight: 800 }}>{s.name}</span>
+                    <button
+                      onClick={() => { setEditingId(s.id); setEditName(s.name); }}
+                      title="Edit name"
+                      style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}
+                    >✏️</button>
+                    <button
+                      onClick={() => handleDelete(s.id)}
+                      title="Remove staff"
+                      style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}
+                    >🗑️</button>
+                  </>
+                )}
+              </div>
+
+              {/* Status + hours + clock button */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: active ? T.green : T.muted,
+                    }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: active ? T.green : T.muted }}>
+                      {active ? `Clocked in since ${fmtTime(active.clockIn)}` : 'Off duty'}
+                    </span>
+                  </div>
+                  {hours && (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.yellow, paddingLeft: 14 }}>
+                      {hours}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleClockToggle(s.id)}
+                  style={{
+                    background: active ? T.card2 : T.blue,
+                    border: active ? `1px solid ${T.border}` : 'none',
+                    borderRadius: 8, color: active ? T.text : '#fff',
+                    fontFamily: "'Nunito', sans-serif", fontWeight: 800,
+                    fontSize: 12, padding: '7px 16px', cursor: 'pointer',
+                  }}
+                >
+                  {active ? 'Clock Out' : 'Clock In'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function KpiCard({ label, value }) {
   return (
     <div style={{
@@ -342,7 +549,7 @@ export default function App() {
           </div>
         )}
         {tab === 'log'    && <LogTab />}
-        {tab === 'staff'  && <Placeholder label="Staff Tracker" />}
+        {tab === 'staff'  && <StaffTab />}
         {tab === 'weekly' && <Placeholder label="Weekly Report" />}
         {tab === 'roi'    && <Placeholder label="ROI Tracker" />}
         {tab === 'stock'  && <Placeholder label="Stock Tracker" />}
